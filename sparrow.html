@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project unknown</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+  body{
+  background-image:url("https://imgs.search.brave.com/jsk1fx0HfbTUvA5rh-ktKlKMZ930Y0m95BlVr28unm4/rs:fit:860:0:0/g:ce/aHR0cHM6Ly9pbWcu/ZnJlZXBpay5jb20v/cHJlbWl1bS1waG90/by9sYXJnZS1jaGFp/bi13aXRoLWNpcmN1/bGFyLWxpbmstYmx1/ZS1jZW50ZXItZ2xv/d2luZy1saW5rXzEw/NTU4OS03MDEuanBn/P3NpemU9NjI2JmV4/dD1qcGc")
+  }
+    .frequency-bar-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .custom-button {
+      padding: 250px;
+      text-align: center;}
+
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+  <a class="navbar-brand" href="#">Navbar</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item active">
+        <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">About us</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+    <div class="container mt-2">
+  <div class="custom-button">
+    <button class="btn btn-primary" id="startButton" onclick="toggleFrequencyBar()">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <i class="fas fa-microphone fa-5x"></i>
+      </div>
+    </button>
+    <div class="frequency-bar-container">
+      <div>
+      <canvas id="frequencyCanvas" width="400" height="60"></canvas>
+        </div>
+      <button class="btn btn-danger stop-button my-1" id="stopButton" onclick="toggleFrequencyBar()">Stop</button>
+      <div id="transcription" style="color: white;"></div>
+    </div>
+  </div>
+</div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        const transcriptionElement = document.getElementById('transcription');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const canvas = document.getElementById('frequencyCanvas');
+        const ctx = canvas.getContext('2d');
+        let recognition = new webkitSpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        let isRecording = false;
+
+        recognition.onresult = function(event) {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    let finalTranscript = event.results[i][0].transcript;
+                    transcriptionElement.innerHTML = finalTranscript;
+
+                    // Send the finalTranscript to the Flask server for processing
+                    $.ajax({
+                        type: 'POST',
+                        url: '/process_audio',
+                        data: JSON.stringify({ audio: finalTranscript }),
+                        contentType: 'application/json',
+                        success: function(response) {
+                            // Handle the server response
+                        }
+                    });
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+        };
+
+        startButton.addEventListener('click', function() {
+            recognition.start();
+            isRecording = true;
+        });
+
+        stopButton.addEventListener('click', function() {
+            recognition.stop();
+            isRecording = false;
+        });
+
+        // Optionally, you can add a confirmation dialog before stopping recording
+        window.onbeforeunload = function() {
+            if (isRecording) {
+                return 'Are you sure you want to stop recording?';
+            }
+        };
+    });
+</script>
+<script>
+    $(document).ready(function() {
+        const transcriptionElement = document.getElementById('transcription');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const canvas = document.getElementById('frequencyCanvas');
+        const ctx = canvas.getContext('2d');
+        let isRecording = false;
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                analyser.connect(audioContext.destination);
+            })
+            .catch(function(err) {
+                console.error('Error accessing microphone:', err);
+            });
+
+        startButton.addEventListener('click', function() {
+            audioContext.resume().then(function() {
+                isRecording = true;
+                visualize();
+            });
+        });
+
+        stopButton.addEventListener('click', function() {
+            isRecording = false;
+        });
+
+        function visualize() {
+            if (!isRecording) return;
+
+            analyser.getByteFrequencyData(dataArray);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = dataArray[i];
+                ctx.fillStyle = rgb(0, ${barHeight}, 0);
+                ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                x += barWidth + 1;
+            }
+
+            requestAnimationFrame(visualize);
+        }
+    });
+</script>
+<script>
+    var isFrequencyBarVisible = false;
+
+    function toggleFrequencyBar() {
+      var frequencyBarContainer = document.querySelector('.frequency-bar-container');
+      var stopButton = document.querySelector('.stopButton');
+      isFrequencyBarVisible = !isFrequencyBarVisible;
+      if (isFrequencyBarVisible) {
+        frequencyBarContainer.style.display = 'block';
+        stopButton.style.display = 'block';
+      } else {
+        frequencyBarContainer.style.display = 'none';
+        stopButton.style.display = 'none';
+      }
+    }
+  </script>
+<script src="https://ajax.googleapis.com/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
